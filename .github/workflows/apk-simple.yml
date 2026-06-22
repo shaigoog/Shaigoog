@@ -31,15 +31,19 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          path = Path('project/app/build.gradle.kts')
-          text = path.read_text()
-          start = text.find('    applicationVariants.all {')
-          if start != -1:
-              end = text.find('\n    }', start)
-              end = text.find('\n    }', end + 1)
-              if end != -1:
-                  text = text[:start] + text[end + 6:]
-                  path.write_text(text)
+
+          path = Path("project/app/build.gradle.kts")
+          text = path.read_text(encoding="utf-8")
+          obsolete = '''    applicationVariants.all {
+              outputs.all {
+                  (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                      "Shaigoog_Ledger_${versionName}.apk"
+              }
+          }
+          '''
+          if obsolete not in text:
+              raise SystemExit("Obsolete APK naming block not found")
+          path.write_text(text.replace(obsolete, ""), encoding="utf-8")
           PY
 
       - name: Set up Java
@@ -55,7 +59,18 @@ jobs:
 
       - name: Build APK
         working-directory: project
-        run: gradle :app:assembleDebug --stacktrace
+        run: |
+          set +e
+          gradle :app:assembleDebug --console=plain --no-daemon > /tmp/build.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            grep -E "FAILURE:|What went wrong|Build file|Could not|^e:|error:|Exception|Caused by" /tmp/build.log | tail -n 30 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            tail -n 100 /tmp/build.log
+            exit "$status"
+          fi
+          cat /tmp/build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
