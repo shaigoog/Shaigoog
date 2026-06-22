@@ -4,6 +4,10 @@ name: Build Operational APK
   push:
     branches:
       - m2-final-build
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
   workflow_dispatch: {}
 
 permissions:
