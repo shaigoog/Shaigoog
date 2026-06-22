@@ -30,20 +30,16 @@ jobs:
       - name: Remove obsolete APK rename block
         run: |
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
           path = Path("project/app/build.gradle.kts")
           text = path.read_text(encoding="utf-8")
-          obsolete = '''    applicationVariants.all {
-              outputs.all {
-                  (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-                      "Shaigoog_Ledger_${versionName}.apk"
-              }
-          }
-          '''
-          if obsolete not in text:
-              raise SystemExit("Obsolete APK naming block not found")
-          path.write_text(text.replace(obsolete, ""), encoding="utf-8")
+          pattern = r'\n    applicationVariants\.all \{\n.*?\n    \}\n(?=\})'
+          updated, count = re.subn(pattern, '\n', text, flags=re.S)
+          if count != 1:
+              raise SystemExit(f"Expected one obsolete block, removed {count}")
+          path.write_text(updated, encoding="utf-8")
           PY
 
       - name: Set up Java
