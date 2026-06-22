@@ -39,12 +39,21 @@ jobs:
           python3 - <<'PY'
           import re
           from pathlib import Path
-          p=Path('project/app/build.gradle.kts')
-          s=p.read_text()
-          s=re.sub(r'versionCode = \d+', 'versionCode = 2', s)
-          s=re.sub(r'versionName = "[^"]+"', 'versionName = "0.2.0-operational01"', s)
-          s=re.sub(r'\n    applicationVariants\.all \{\n.*?\n    \}\n(?=\})', '\n', s, flags=re.S)
-          p.write_text(s)
+
+          gradle_file=Path('project/app/build.gradle.kts')
+          gradle_text=gradle_file.read_text()
+          gradle_text=re.sub(r'versionCode = \d+', 'versionCode = 2', gradle_text)
+          gradle_text=re.sub(r'versionName = "[^"]+"', 'versionName = "0.2.0-operational01"', gradle_text)
+          gradle_text=re.sub(r'\n    applicationVariants\.all \{\n.*?\n    \}\n(?=\})', '\n', gradle_text, flags=re.S)
+          gradle_file.write_text(gradle_text)
+
+          app_file=Path('project/app/src/main/kotlin/com/shaigoog/ledger/ui/ShaigoogLedgerApp.kt')
+          app_text=app_file.read_text()
+          old='val store=remember{LocalLedgerStore(LocalContext.current.applicationContext)}'
+          new='val context=LocalContext.current\n    val store=remember(context){LocalLedgerStore(context.applicationContext)}'
+          if old not in app_text:
+              raise SystemExit('Expected LocalContext pattern not found')
+          app_file.write_text(app_text.replace(old,new,1))
           PY
 
       - name: Set up Java
