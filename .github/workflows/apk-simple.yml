@@ -4,6 +4,9 @@ name: Build APK
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch: {}
 
 permissions:
@@ -25,7 +28,19 @@ jobs:
           unzip -q /tmp/project.zip -d project
 
       - name: Remove obsolete APK rename block
-        run: sed -i '/    applicationVariants.all {/,/    }/d' project/app/build.gradle.kts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('project/app/build.gradle.kts')
+          text = path.read_text()
+          start = text.find('    applicationVariants.all {')
+          if start != -1:
+              end = text.find('\n    }', start)
+              end = text.find('\n    }', end + 1)
+              if end != -1:
+                  text = text[:start] + text[end + 6:]
+                  path.write_text(text)
+          PY
 
       - name: Set up Java
         uses: actions/setup-java@v4
