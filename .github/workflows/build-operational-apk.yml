@@ -1,0 +1,76 @@
+name: Build Operational APK
+
+"on":
+  push:
+    branches:
+      - m2-final-build
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore base project
+        shell: bash
+        run: |
+          cat artifacts/m0.b64.* | base64 --decode > /tmp/base.zip
+          echo "892ef0da68760932e0e574ba90b5e57d94b44dc5cc1fa83bac8d98d758025a77  /tmp/base.zip" | sha256sum -c -
+          mkdir project
+          unzip -q /tmp/base.zip -d project
+
+      - name: Apply operational overlay
+        shell: bash
+        run: |
+          mkdir -p project/app/src/main/kotlin/com/shaigoog/ledger/data
+          base64 --decode overlays/operational/store.kt.b64 > project/app/src/main/kotlin/com/shaigoog/ledger/data/LocalLedgerStore.kt
+          base64 --decode overlays/operational/app.kt.b64 > project/app/src/main/kotlin/com/shaigoog/ledger/ui/ShaigoogLedgerApp.kt
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          p=Path('project/app/build.gradle.kts')
+          s=p.read_text()
+          s=re.sub(r'versionCode = \d+', 'versionCode = 2', s)
+          s=re.sub(r'versionName = "[^"]+"', 'versionName = "0.2.0-operational01"', s)
+          s=re.sub(r'\n    applicationVariants\.all \{\n.*?\n    \}\n(?=\})', '\n', s, flags=re.S)
+          p.write_text(s)
+          PY
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.4.1"
+
+      - name: Build APK
+        working-directory: project
+        shell: bash
+        run: |
+          set +e
+          gradle :app:assembleDebug --console=plain --no-daemon > /tmp/build.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            grep -E "FAILURE:|What went wrong|Build file|Could not|^e:|error:|Exception|Caused by" /tmp/build.log | tail -n 60 | while IFS= read -r line; do echo "::error::$line"; done
+            tail -n 180 /tmp/build.log
+            exit "$status"
+          fi
+          cat /tmp/build.log
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: shaigoog-ledger-operational-apk
+          path: project/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
