@@ -4,6 +4,7 @@ name: Build Operational APK
   push:
     branches:
       - m2-final-build
+      - m2-build-monitor
   pull_request:
     branches:
       - main
@@ -38,12 +39,21 @@ jobs:
           python3 - <<'PY'
           import re
           from pathlib import Path
-          p=Path('project/app/build.gradle.kts')
-          s=p.read_text()
-          s=re.sub(r'versionCode = \d+', 'versionCode = 2', s)
-          s=re.sub(r'versionName = "[^"]+"', 'versionName = "0.2.0-operational01"', s)
-          s=re.sub(r'\n    applicationVariants\.all \{\n.*?\n    \}\n(?=\})', '\n', s, flags=re.S)
-          p.write_text(s)
+
+          gradle_file=Path('project/app/build.gradle.kts')
+          gradle_text=gradle_file.read_text()
+          gradle_text=re.sub(r'versionCode = \d+', 'versionCode = 2', gradle_text)
+          gradle_text=re.sub(r'versionName = "[^"]+"', 'versionName = "0.2.0-operational01"', gradle_text)
+          gradle_text=re.sub(r'\n    applicationVariants\.all \{\n.*?\n    \}\n(?=\})', '\n', gradle_text, flags=re.S)
+          gradle_file.write_text(gradle_text)
+
+          app_file=Path('project/app/src/main/kotlin/com/shaigoog/ledger/ui/ShaigoogLedgerApp.kt')
+          app_text=app_file.read_text()
+          old='val store=remember{LocalLedgerStore(LocalContext.current.applicationContext)}'
+          new='val context=LocalContext.current\n    val store=remember(context){LocalLedgerStore(context.applicationContext)}'
+          if old not in app_text:
+              raise SystemExit('Expected LocalContext pattern not found')
+          app_file.write_text(app_text.replace(old,new,1))
           PY
 
       - name: Set up Java
@@ -65,13 +75,23 @@ jobs:
           gradle :app:assembleDebug --console=plain --no-daemon > /tmp/build.log 2>&1
           status=$?
           if [ "$status" -ne 0 ]; then
-            grep -E "FAILURE:|What went wrong|Build file|Could not|^e:|error:|Exception|Caused by" /tmp/build.log | tail -n 60 | while IFS= read -r line; do echo "::error::$line"; done
-            tail -n 180 /tmp/build.log
+            grep -E "FAILURE:|What went wrong|Build file|Could not|^e:|error:|Exception|Caused by" /tmp/build.log | tail -n 80 | while IFS= read -r line; do echo "::error::$line"; done
+            tail -n 220 /tmp/build.log
             exit "$status"
           fi
           cat /tmp/build.log
 
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: operational-build-log
+          path: /tmp/build.log
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: shaigoog-ledger-operational-apk
