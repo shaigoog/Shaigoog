@@ -66,11 +66,12 @@ jobs:
           base64 --decode /tmp/fikratak-source.b64 > /tmp/fikratak-source.zip
           echo "901e3a95fb6f542b8b0efc3b7dba32f604186102d82ef12f2aca4bcc400b1a83  /tmp/fikratak-source.zip" | sha256sum -c -
 
-      - name: Extract project source
+      - name: Extract and patch project source
         run: |
           mkdir -p /tmp/fikratak-build
           unzip -t /tmp/fikratak-source.zip
           unzip -q /tmp/fikratak-source.zip -d /tmp/fikratak-build
+          sed -i '/import androidx.compose.foundation.layout.weight/d' /tmp/fikratak-build/fikratak-app/app/src/main/java/com/fikratak/app/MainActivity.kt
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
