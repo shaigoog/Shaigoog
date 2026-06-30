@@ -1,0 +1,74 @@
+name: Build Fikratak Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/fikratak-app
+  pull_request:
+    paths:
+      - 'fikratak-app/**'
+      - '.github/workflows/fikratak-build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Restore project source
+        run: |
+          mkdir -p /tmp/fikratak-build
+          cat fikratak-app/source-parts/part-*.b64 > /tmp/fikratak-source.b64
+          base64 --decode /tmp/fikratak-source.b64 > /tmp/fikratak-source.zip
+          unzip -t /tmp/fikratak-source.zip
+          unzip -q /tmp/fikratak-source.zip -d /tmp/fikratak-build
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        working-directory: /tmp/fikratak-build/fikratak-app
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Build release AAB
+        working-directory: /tmp/fikratak-build/fikratak-app
+        run: gradle :app:bundleRelease --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: fikratak-debug-apk
+          path: /tmp/fikratak-build/fikratak-app/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: fikratak-release-aab-unsigned
+          path: /tmp/fikratak-build/fikratak-app/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Upload source ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: fikratak-source
+          path: /tmp/fikratak-source.zip
