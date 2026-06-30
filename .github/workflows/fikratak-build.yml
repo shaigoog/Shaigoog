@@ -20,11 +20,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Restore project source
+      - name: Validate source part 00
+        run: echo "07eb5149a73a26c3631643d766ba185126abc1f7f00f6a53f8d647cff3f4a76a  fikratak-app/source-parts/part-00.b64" | sha256sum -c -
+
+      - name: Validate source part 01
+        run: echo "f5c34b23db693e9fe4c80924b44846198a1df9cde6a896c0c4af7d6cb2998a90  fikratak-app/source-parts/part-01.b64" | sha256sum -c -
+
+      - name: Validate source part 02
+        run: echo "cc512fe54c6ad22493880f8b6cab4d26208845784c6ebced3f735ee4c4b5e5a7  fikratak-app/source-parts/part-02.b64" | sha256sum -c -
+
+      - name: Validate source part 03
+        run: echo "898f09de34a0d2c58fdba53e1ebce977e364c70e3c6557ca8bf5a9365960563e  fikratak-app/source-parts/part-03.b64" | sha256sum -c -
+
+      - name: Validate source part 04
+        run: echo "47b9befa712c77f11a82b80d1e5a830909c5a09abb3e5928d1bfa35c0e1db146  fikratak-app/source-parts/part-04.b64" | sha256sum -c -
+
+      - name: Combine source archive
+        run: |
+          cat fikratak-app/source-parts/part-*.b64 > /tmp/fikratak-source.b64
+          echo "d2cde71a918f055d2ec7095418134ca669ee73a91426fad4713d65a3944b2c82  /tmp/fikratak-source.b64" | sha256sum -c -
+
+      - name: Decode source archive
+        run: |
+          base64 --decode /tmp/fikratak-source.b64 > /tmp/fikratak-source.zip
+          echo "901e3a95fb6f542b8b0efc3b7dba32f604186102d82ef12f2aca4bcc400b1a83  /tmp/fikratak-source.zip" | sha256sum -c -
+
+      - name: Extract project source
         run: |
           mkdir -p /tmp/fikratak-build
-          cat fikratak-app/source-parts/part-*.b64 > /tmp/fikratak-source.b64
-          base64 --decode /tmp/fikratak-source.b64 > /tmp/fikratak-source.zip
           unzip -t /tmp/fikratak-source.zip
           unzip -q /tmp/fikratak-source.zip -d /tmp/fikratak-build
 
